@@ -8,12 +8,32 @@ pub struct AppState {
     pub jwt_secret: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Type, PartialEq, Clone)]
+#[sqlx(type_name = "user_role", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum UserRole {
+    #[serde(rename = "MUTLAK İRADE")]
+    #[sqlx(rename = "MUTLAK İRADE")]
+    MutlakIrade,
+
+    #[serde(rename = "Yüce Hiçlik")]
+    #[sqlx(rename = "Yüce Hiçlik")]
+    YuceHiclik,
+
+    #[serde(rename = "YARGIÇ")]
+    #[sqlx(rename = "YARGIÇ")]
+    Yargic,
+
+    #[serde(rename = "MÜRİT")]
+    #[sqlx(rename = "MÜRİT")]
+    Murit,
+}
+
 #[derive(Serialize, FromRow)]
 pub struct User {
     pub id: uuid::Uuid,
     pub username: String,
     pub password_hash: String,
-    pub role: String,
+    pub role: UserRole,
 }
 
 #[derive(Deserialize, Validate)]
@@ -24,7 +44,7 @@ pub struct RegisterPayload {
     #[validate(length(min = 6, message = "Şifre en az 6 karakter olmalı"))]
     pub password: String,
 
-    pub role: Option<String>,
+    pub role: Option<UserRole>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -78,7 +98,7 @@ pub struct PostResponse {
 pub struct Claims {
     pub sub: String,
     pub username: String,
-    pub role: String,
+    pub role: UserRole,
     pub exp: usize,
 }
 
@@ -119,6 +139,6 @@ pub struct AuditLogResponse {
 #[derive(Serialize, sqlx::FromRow)]
 pub struct DiscipleResponse {
     pub username: String,
-    pub role: String,
+    pub role: UserRole,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

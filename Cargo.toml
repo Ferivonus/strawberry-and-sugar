@@ -15,11 +15,11 @@ sqlx = { version = "0.8.6", features = [
     "chrono",
 ] }
 dotenvy = "0.15.7"
-env_logger = "0.11.8"
+env_logger = "0.11.9"
 chrono = { version = "0.4.43", features = ["serde"] }
 uuid = { version = "1.20.0", features = ["serde", "v4"] }
 tokio = { version = "1.49.0", features = ["full"] }
 argon2 = "0.5.3"
-jsonwebtoken = "10.3.0"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 rand = "0.10.0"
 validator = { version = "0.20.0", features = ["derive"] }

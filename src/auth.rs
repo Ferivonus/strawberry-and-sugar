@@ -1,61 +1,52 @@
-use actix_web::{
-    dev::Payload, error::ErrorUnauthorized, http, web, Error, FromRequest, HttpRequest,
-};
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use actix_web::{dev::Payload, error::ErrorUnauthorized, web, FromRequest, HttpRequest};
+use jsonwebtoken::{decode, DecodingKey, Validation};
 use std::future::{ready, Ready};
 use uuid::Uuid;
 
-use crate::models::{AppState, Claims};
+use crate::models::{AppState, Claims, UserRole};
 
+// Bu struct, korumalı rotalara (handler'lara) parametre olarak
+// enjekte edilecek olan, kimliği doğrulanmış kullanıcıdır.
 pub struct AuthenticatedUser {
     pub id: Uuid,
     pub username: String,
-    pub role: String,
+    pub role: UserRole, // String yerine artık Enum kullanıyoruz
 }
 
 impl FromRequest for AuthenticatedUser {
-    type Error = Error;
+    type Error = actix_web::Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let token_cookie = req.cookie("auth_token");
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // 1. AppState'e (Veritabanı ve Secret Key'e) ulaş
+        let data = req.app_data::<web::Data<AppState>>().unwrap();
 
-        let token = if let Some(cookie) = token_cookie {
-            cookie.value().to_string()
-        } else {
-            let auth_header = req.headers().get(http::header::AUTHORIZATION);
-
-            if let Some(header_val) = auth_header {
-                let auth_str = header_val.to_str().unwrap_or("");
-                if auth_str.starts_with("Bearer ") {
-                    auth_str[7..].to_string()
-                } else {
-                    return ready(Err(ErrorUnauthorized(
-                        "Geçersiz mühür formatı! (Bearer eksik)",
-                    )));
-                }
-            } else {
-                // Ne Cookie var ne Header -> Erişim Reddedildi
-                return ready(Err(ErrorUnauthorized(
-                    "Mühür bulunamadı! Giriş yapmalısın.",
-                )));
-            }
+        // 2. Cookie'den token'ı çek
+        let auth_token = match req.cookie("auth_token") {
+            Some(cookie) => cookie.value().to_string(),
+            None => return ready(Err(ErrorUnauthorized("Giriş yapmanız gerekiyor."))),
         };
 
-        let data = req.app_data::<web::Data<AppState>>().unwrap();
-        let decoding_key = DecodingKey::from_secret(data.jwt_secret.as_bytes());
-        let validation = Validation::new(Algorithm::HS256);
+        // 3. Token'ı çöz (Decode)
+        let token_data = decode::<Claims>(
+            &auth_token,
+            &DecodingKey::from_secret(data.jwt_secret.as_bytes()),
+            &Validation::default(),
+        );
 
-        match decode::<Claims>(&token, &decoding_key, &validation) {
-            Ok(token_data) => {
-                let user_id = Uuid::parse_str(&token_data.claims.sub).unwrap_or_default();
+        // 4. Sonucu döndür
+        match token_data {
+            Ok(token) => {
+                // Token içindeki ID string olduğu için UUID'ye çeviriyoruz
+                let user_id = Uuid::parse_str(&token.claims.sub).unwrap_or_default();
+
                 ready(Ok(AuthenticatedUser {
                     id: user_id,
-                    username: token_data.claims.username,
-                    role: token_data.claims.role,
+                    username: token.claims.username,
+                    role: token.claims.role, // Enum otomatik eşleşir
                 }))
             }
-            Err(_) => ready(Err(ErrorUnauthorized("Mühür kırık veya zamanı geçmiş!"))),
+            Err(_) => ready(Err(ErrorUnauthorized("Geçersiz veya süresi dolmuş mühür."))),
         }
     }
 }
