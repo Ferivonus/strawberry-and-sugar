@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Veritabanı bağlantı hatası!");
 
-    println!("† Ferivonizm Mabedi (Modular Actix) 8080 portunda...");
+    println!("The program is working at http://localhost:8080");
 
     HttpServer::new(move || {
         let cors = Cors::default()
