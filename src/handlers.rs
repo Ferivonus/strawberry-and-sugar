@@ -22,7 +22,6 @@ pub async fn login_handler(
     data: web::Data<AppState>,
     body: web::Json<LoginPayload>,
 ) -> impl Responder {
-    // 1. Validasyon
     if let Err(e) = body.validate() {
         return HttpResponse::BadRequest()
             .json(serde_json::json!({"error": "Girdi Hatası", "details": e}));
@@ -35,7 +34,18 @@ pub async fn login_handler(
         .unwrap_or(None);
 
     if let Some(user) = user_result {
-        let parsed_hash = PasswordHash::new(&user.password_hash).unwrap();
+        let parsed_hash = match PasswordHash::new(&user.password_hash) {
+            Ok(hash) => hash,
+            Err(e) => {
+                eprintln!(
+                    "GÜVENLİK UYARISI: User ID {} için bozuk hash tespit edildi. Hata: {}",
+                    user.id, e
+                );
+                return HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Hesap verilerinde teknik bir uyumsuzluk var. Yönetici ile görüşün."
+                }));
+            }
+        };
 
         if Argon2::default()
             .verify_password(body.password.as_bytes(), &parsed_hash)
@@ -60,17 +70,14 @@ pub async fn login_handler(
             )
             .unwrap();
 
-            // --- GÜVENLİK DEVRİMİ BURADA ---
             let cookie = Cookie::build("auth_token", token)
                 .path("/")
-                .http_only(true) // JS erişemez (XSS Koruması)
-                .secure(false) // Localhost'ta false, HTTPS'te true olmalı!
+                .http_only(true) // JavaScript erişemez (XSS Koruması)
+                .secure(false) // Localhost'ta false, Canlıda (HTTPS) true olmalı
                 .same_site(SameSite::Lax) // CSRF Koruması
                 .max_age(actix_web::cookie::time::Duration::days(1))
                 .finish();
 
-            // Token'ı JSON olarak dönmüyoruz, sadece kullanıcı bilgisini dönüyoruz.
-            // Token "Set-Cookie" header'ı ile gidiyor.
             return HttpResponse::Ok().cookie(cookie).json(serde_json::json!({
                 "msg": "Mühürlendi.",
                 "username": user.username,
@@ -78,6 +85,8 @@ pub async fn login_handler(
             }));
         }
     }
+
+    // Kullanıcı bulunamadı veya şifre yanlış
     HttpResponse::Unauthorized().body("Kimlik doğrulanamadı. Gölgede kal.")
 }
 
