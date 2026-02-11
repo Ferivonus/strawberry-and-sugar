@@ -4,7 +4,6 @@ use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 
-// Modülleri tanımla
 mod auth;
 mod handlers;
 mod models;
