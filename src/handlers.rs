@@ -16,10 +16,13 @@ use crate::models::{
     User,
 };
 
+use actix_web::cookie::{Cookie, SameSite};
+
 pub async fn login_handler(
     data: web::Data<AppState>,
     body: web::Json<LoginPayload>,
 ) -> impl Responder {
+    // 1. Validasyon
     if let Err(e) = body.validate() {
         return HttpResponse::BadRequest()
             .json(serde_json::json!({"error": "Girdi Hatası", "details": e}));
@@ -57,14 +60,39 @@ pub async fn login_handler(
             )
             .unwrap();
 
-            return HttpResponse::Ok().json(serde_json::json!({
-                "token": token,
+            // --- GÜVENLİK DEVRİMİ BURADA ---
+            let cookie = Cookie::build("auth_token", token)
+                .path("/")
+                .http_only(true) // JS erişemez (XSS Koruması)
+                .secure(false) // Localhost'ta false, HTTPS'te true olmalı!
+                .same_site(SameSite::Lax) // CSRF Koruması
+                .max_age(actix_web::cookie::time::Duration::days(1))
+                .finish();
+
+            // Token'ı JSON olarak dönmüyoruz, sadece kullanıcı bilgisini dönüyoruz.
+            // Token "Set-Cookie" header'ı ile gidiyor.
+            return HttpResponse::Ok().cookie(cookie).json(serde_json::json!({
+                "msg": "Mühürlendi.",
                 "username": user.username,
                 "role": user.role
             }));
         }
     }
     HttpResponse::Unauthorized().body("Kimlik doğrulanamadı. Gölgede kal.")
+}
+
+// ÇIKIŞ YAP (Mührü Kır)
+// Cookie'yi silmek için süresini geçmişe ayarlarız.
+pub async fn logout_handler() -> impl Responder {
+    let cookie = Cookie::build("auth_token", "")
+        .path("/")
+        .http_only(true)
+        .max_age(actix_web::cookie::time::Duration::seconds(-1)) // Geçmiş zaman
+        .finish();
+
+    HttpResponse::Ok()
+        .cookie(cookie)
+        .json(serde_json::json!({"msg": "Mühür kırıldı. Artık gölgesizsin."}))
 }
 
 pub async fn get_me(user: AuthenticatedUser) -> impl Responder {
