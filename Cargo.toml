@@ -22,4 +22,4 @@ tokio = { version = "1.49.0", features = ["full"] }
 argon2 = "0.5.3"
 jsonwebtoken = "10.3.0"
 rand = "0.10.0"
-validator = { version = "0.16", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
