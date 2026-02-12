@@ -17,6 +17,7 @@ impl FromRequest for AuthenticatedUser {
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let data = req.app_data::<web::Data<AppState>>().unwrap();
 
+        // I don't wanna feel alone.
         let auth_token = match req.cookie("auth_token") {
             Some(cookie) => cookie.value().to_string(),
             None => return ready(Err(ErrorUnauthorized("Giriş yapmanız gerekiyor."))),
